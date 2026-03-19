@@ -11,7 +11,10 @@
     "next": "^15.0.0",
     "react": "^18.0.0",
     "react-dom": "^18.0.0",
-    "@solana/web3.js": "^1.98.0"
+    "@solana/web3.js": "^1.98.0",
+    "@magicblock-labs/ephemeral-rollups-sdk": "^0.8.0",
+    "@coral-xyz/anchor": "^0.32.1",
+    "tweetnacl": "^1.0.3"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

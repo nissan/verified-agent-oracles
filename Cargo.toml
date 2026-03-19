@@ -1,0 +1,3 @@
+[workspace]
+members = ["programs/oracle-escrow"]
+resolver = "2"

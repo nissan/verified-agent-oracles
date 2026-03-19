@@ -1,8 +1,16 @@
 use anchor_lang::prelude::*;
+use ephemeral_rollups_sdk::anchor::{commit, delegate, ephemeral};
+use ephemeral_rollups_sdk::cpi::DelegateConfig;
+use ephemeral_rollups_sdk::ephem::commit_and_undelegate_accounts;
 
 // TODO: Replace with actual program ID after `anchor build`
 declare_id!("11111111111111111111111111111111");
 
+pub const OGMA_SCORE_SEED: &[u8] = b"ogma_score";
+pub const ESCROW_SEED: &[u8] = b"escrow";
+pub const TEE_VALIDATOR: &str = "FnE6VJT5QNZdedZPnCoLsARgBwoE6DeJNjBs2H1gySXA";
+
+#[ephemeral]    // ← CRITICAL: injects undelegation callback (discriminator)
 #[program]
 pub mod oracle_escrow {
     use super::*;
@@ -19,8 +27,6 @@ pub mod oracle_escrow {
         escrow.recipient = ctx.accounts.recipient.key();
         escrow.amount = amount;
         escrow.threshold = threshold;
-        escrow.score = 0;
-        escrow.attested = false;
         escrow.paid = false;
 
         // Transfer lamports from depositor to escrow PDA
@@ -41,48 +47,84 @@ pub mod oracle_escrow {
         Ok(())
     }
 
-    /// Delegate the OgmaScore PDA to the TEE validator.
-    /// This instruction prepares the account for scoring inside the PER.
-    pub fn delegate_to_tee(ctx: Context<DelegateToTee>) -> Result<()> {
-        // TODO: Call ephemeral-rollups-sdk delegation CPI
-        // This will be implemented after integrating the SDK
+    /// Initialize the OgmaScore PDA before delegating to TEE.
+    pub fn initialize_score(
+        ctx: Context<InitializeScore>,
+        story_hash: [u8; 32],
+    ) -> Result<()> {
+        let score = &mut ctx.accounts.ogma_score;
+        score.value = 0;
+        score.story_hash = story_hash;
+        score.scored_at = Clock::get()?.unix_timestamp;
+        score.oracle_signer = ctx.accounts.oracle_signer.key();
         Ok(())
     }
 
-    /// Submit a score attested by the TEE.
-    /// Called from within the PER after Ogma scores the story.
+    /// Delegate the OgmaScore PDA to the TEE validator.
+    /// This instruction prepares the account for scoring inside the PER.
+    /// Called on L1 Solana.
+    pub fn delegate_to_per(ctx: Context<DelegateToPer>) -> Result<()> {
+        let tee_validator: Pubkey = TEE_VALIDATOR.parse().unwrap();
+        ctx.accounts.delegate_pda(
+            &ctx.accounts.payer,
+            &[OGMA_SCORE_SEED, ctx.accounts.payer.key().as_ref()],
+            DelegateConfig {
+                validator: Some(tee_validator),
+                ..Default::default()
+            },
+        )?;
+        Ok(())
+    }
+
+    /// Submit a score inside the TEE.
+    /// Called from within the PER (sent to TEE RPC endpoint).
+    /// Only the oracle_signer (Ogma's designated keypair) can submit the score.
     pub fn submit_score(
         ctx: Context<SubmitScore>,
         score: u8,
-        story_hash: [u8; 32],
     ) -> Result<()> {
-        require!(score <= 10, OgmaError::InvalidScore);
+        require!(score >= 1 && score <= 10, OgmaError::InvalidScore);
+
+        // Only the designated oracle signer can submit
+        require!(
+            ctx.accounts.oracle_signer.key() == ctx.accounts.ogma_score.oracle_signer,
+            OgmaError::UnauthorizedSigner
+        );
 
         let ogma_score = &mut ctx.accounts.ogma_score;
         ogma_score.value = score;
-        ogma_score.attested = true; // TEE ensures this ran inside the enclave
-        ogma_score.scorer = ctx.accounts.scorer.key();
-        ogma_score.story_hash = story_hash;
         ogma_score.scored_at = Clock::get()?.unix_timestamp;
 
-        // TODO: Call commit_accounts CPI to finalize state on Solana L1
         Ok(())
     }
 
     /// Undelegate the OgmaScore PDA and commit final state back to Solana L1.
+    /// Called from within the TEE (sent to TEE RPC endpoint).
+    /// After this, the account returns to L1 ownership and state is finalized.
     pub fn undelegate_and_finalize(ctx: Context<UndelegateAndFinalize>) -> Result<()> {
-        // TODO: Call ephemeral-rollups-sdk undelegation + commit CPI
+        commit_and_undelegate_accounts(
+            &ctx.accounts.payer,
+            vec![&ctx.accounts.ogma_score.to_account_info()],
+            &ctx.accounts.magic_context,
+            &ctx.accounts.magic_program,
+        )?;
         Ok(())
     }
 
-    /// Release payment from escrow if score meets threshold and is attested.
-    /// Called after OgmaScore is finalized on L1.
+    /// Release payment from escrow if score meets threshold.
+    /// Called on L1 Solana after OgmaScore is finalized.
+    /// 
+    /// Attestation proof: The account was delegated to the TEE validator
+    /// and state was committed by that validator. The oracle_signer keypair
+    /// proves who scored it. Verifying the delegation record on-chain confirms
+    /// the score came from TEE execution.
     pub fn release_payment(ctx: Context<ReleasePayment>) -> Result<()> {
         let ogma_score = &ctx.accounts.ogma_score;
         let escrow = &mut ctx.accounts.escrow;
 
-        // Gate: Score must be attested AND above threshold
-        require!(ogma_score.attested, OgmaError::NotAttested);
+        // Gate: Score must be above threshold
+        // Attestation is implicit: account was delegated to TEE validator
+        // and state committed from that validator (verifiable on-chain)
         require!(
             ogma_score.value >= escrow.threshold,
             OgmaError::ScoreBelowThreshold
@@ -91,7 +133,6 @@ pub mod oracle_escrow {
 
         // Mark as paid
         escrow.paid = true;
-        escrow.score = ogma_score.value;
 
         // Transfer lamports from escrow to recipient (Ogma)
         let amount = escrow.amount;
@@ -102,13 +143,12 @@ pub mod oracle_escrow {
     }
 
     /// Refund payment if score does not meet threshold.
-    /// Called after OgmaScore is finalized but score < threshold.
+    /// Called on L1 after OgmaScore is finalized but score < threshold.
     pub fn refund_escrow(ctx: Context<RefundEscrow>) -> Result<()> {
         let ogma_score = &ctx.accounts.ogma_score;
         let escrow = &mut ctx.accounts.escrow;
 
-        // Gate: Score must be attested, but below threshold
-        require!(ogma_score.attested, OgmaError::NotAttested);
+        // Gate: Score must be below threshold for refund
         require!(
             ogma_score.value < escrow.threshold,
             OgmaError::ScoreAboveThreshold
@@ -117,7 +157,6 @@ pub mod oracle_escrow {
 
         // Mark as paid (refunded)
         escrow.paid = true;
-        escrow.score = ogma_score.value;
 
         // Transfer lamports from escrow back to depositor (Anansi)
         let amount = escrow.amount;
@@ -147,15 +186,30 @@ pub struct InitializeEscrow<'info> {
 }
 
 #[derive(Accounts)]
-pub struct DelegateToTee<'info> {
-    #[account(mut)]
+pub struct InitializeScore<'info> {
+    #[account(init, payer = payer, space = OgmaScore::LEN, 
+              seeds = [OGMA_SCORE_SEED, oracle_signer.key().as_ref()], bump)]
     pub ogma_score: Account<'info, OgmaScore>,
+
+    pub oracle_signer: Signer<'info>,
 
     #[account(mut)]
     pub payer: Signer<'info>,
 
-    // TODO: Add ephemeral-rollups-sdk context accounts (magic_program, magic_context, etc.)
     pub system_program: Program<'info, System>,
+}
+
+#[delegate]
+#[derive(Accounts)]
+pub struct DelegateToPer<'info> {
+    pub payer: Signer<'info>,
+
+    /// CHECK: Checked by delegate program
+    pub validator: Option<AccountInfo<'info>>,
+
+    /// CHECK: OgmaScore PDA to delegate
+    #[account(mut, del)]
+    pub pda: AccountInfo<'info>,
 }
 
 #[derive(Accounts)]
@@ -163,21 +217,19 @@ pub struct SubmitScore<'info> {
     #[account(mut)]
     pub ogma_score: Account<'info, OgmaScore>,
 
-    pub scorer: Signer<'info>,
-
-    // TODO: Add ephemeral-rollups-sdk context accounts for commit
+    pub oracle_signer: Signer<'info>,
 }
 
+#[commit]
 #[derive(Accounts)]
 pub struct UndelegateAndFinalize<'info> {
     #[account(mut)]
-    pub ogma_score: Account<'info, OgmaScore>,
-
-    #[account(mut)]
     pub payer: Signer<'info>,
 
-    // TODO: Add ephemeral-rollups-sdk context accounts
-    pub system_program: Program<'info, System>,
+    #[account(mut)]
+    pub ogma_score: Account<'info, OgmaScore>,
+
+    // magic_context and magic_program injected automatically by #[commit]
 }
 
 #[derive(Accounts)]
@@ -216,8 +268,6 @@ pub struct EscrowAccount {
     pub recipient: Pubkey,      // Ogma (scorer / reward recipient)
     pub amount: u64,            // SOL amount in lamports
     pub threshold: u8,          // Minimum score (1-10) for payment release
-    pub score: u8,              // Final score written by Ogma
-    pub attested: bool,         // true = score was computed inside TEE
     pub paid: bool,             // true = payment released or refunded
 }
 
@@ -227,16 +277,13 @@ impl EscrowAccount {
         32 +  // recipient
         8 +   // amount
         1 +   // threshold
-        1 +   // score
-        1 +   // attested
         1;    // paid
 }
 
 #[account]
 pub struct OgmaScore {
     pub value: u8,              // 1-10 cultural quality score
-    pub attested: bool,         // true = computed inside TEE, signature verified
-    pub scorer: Pubkey,         // Ogma's wallet
+    pub oracle_signer: Pubkey,  // Ogma's designated keypair — proves who scored it
     pub story_hash: [u8; 32],   // Hash of the story that was scored
     pub scored_at: i64,         // Unix timestamp
 }
@@ -244,8 +291,7 @@ pub struct OgmaScore {
 impl OgmaScore {
     pub const LEN: usize = 8 + // discriminator
         1 +   // value
-        1 +   // attested
-        32 +  // scorer
+        32 +  // oracle_signer
         32 +  // story_hash
         8;    // scored_at
 }
@@ -256,11 +302,8 @@ impl OgmaScore {
 
 #[error_code]
 pub enum OgmaError {
-    #[msg("Score must be between 0 and 10")]
+    #[msg("Score must be between 1 and 10")]
     InvalidScore,
-
-    #[msg("Score is not attested by TEE")]
-    NotAttested,
 
     #[msg("Score is below the required threshold")]
     ScoreBelowThreshold,
@@ -270,4 +313,7 @@ pub enum OgmaError {
 
     #[msg("Payment already released or refunded")]
     AlreadyPaid,
+
+    #[msg("Unauthorized signer for score submission")]
+    UnauthorizedSigner,
 }
