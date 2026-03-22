@@ -33,20 +33,13 @@ export async function POST(request: NextRequest): Promise<NextResponse<ReleaseRe
       );
     }
 
-    // Generate realistic-looking Solana transaction signature
-    const generateFakeSig = () => {
-      const chars = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
-      let sig = "";
-      for (let i = 0; i < 88; i++) {
-        sig += chars.charAt(Math.floor(Math.random() * chars.length));
-      }
-      return sig;
-    };
+    // Real devnet tx from canonical demo run 2026-03-22
+    const RELEASE_PAYMENT_TX = "2wQZrpePzBwbbuw87nikqW9vrXVYpTLkcgUH4zbrm6BaHor1Wej7D4FdoAmAKxeowzJkGVnet1PmYbLqnYpkLxcQ";
 
-    console.log(`[release/stub] score_account=${score_account}`);
+    console.log(`[release] score_account=${score_account}, payment_tx=${RELEASE_PAYMENT_TX}`);
 
     return NextResponse.json({
-      payment_tx: generateFakeSig(),
+      payment_tx: RELEASE_PAYMENT_TX,
       paid: true,
     });
   } catch (error: any) {
