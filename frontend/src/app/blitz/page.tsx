@@ -105,14 +105,14 @@ export default function BlitzDemo() {
         {/* Header */}
         <div>
           <h1 className="text-3xl font-bold text-purple-400">
-            Verified Agent Oracles
+            OgmaScore
           </h1>
           <p className="text-gray-400 mt-2">
-            TEE-attested AI judgment as a payment condition on Solana.
+            TEE-attested AI judgment as a payment primitive on Solana.
             <br />
             Ogma scores inside a{" "}
-            <span className="text-purple-300">Private Ephemeral Rollup</span> —
-            proof is committed on-chain before payment releases.
+            <span className="text-purple-300">MagicBlock Private Ephemeral Rollup</span> —
+            cryptographic proof committed on-chain before payment releases.
           </p>
         </div>
 
