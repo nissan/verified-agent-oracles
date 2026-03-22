@@ -6,6 +6,26 @@
 
 ---
 
+## 🎮 Try the Demo
+
+**Live on Vercel:** [frontend-iota-eight-30.vercel.app](https://frontend-iota-eight-30.vercel.app)
+
+The demo runs in **stub mode** (no API costs) by default, generating realistic transaction signatures and returning mock scores. 
+
+### Modes
+
+- **Stub mode** (default) — No API calls; returns convincing mock responses with real SHA-256 hashes of your stories. See the `demo mode` badge in results.
+- **Live mode** — Set environment variable `OGMA_URL=http://localhost:8001` to call a real Ogma scoring instance (requires local Ogma FastAPI server running).
+
+### What You'll See
+
+1. Submit a story to Anansi
+2. Ogma scores it inside a TEE (stub: random 7–9, live: real score)
+3. Score committed to Solana devnet + payment released
+4. View on Solana devnet explorer
+
+---
+
 ## Problem
 
 AI agents make high-stakes decisions: content moderation, compliance scoring, cultural assessment. But how do you prove they computed honestly rather than picking a random number or being bribed?

@@ -10,6 +10,8 @@ interface ScoreResult {
   attestation_tx?: string;
   payment_tx?: string;
   attested: boolean;
+  model_used?: string;
+  score_account?: string;
 }
 
 export default function BlitzDemo() {
@@ -59,6 +61,7 @@ export default function BlitzDemo() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ score_account: attested.score_account }),
       });
+      if (!payRes.ok) throw new Error("Payment release failed");
       const payment = await payRes.json();
 
       setResult({
@@ -66,9 +69,11 @@ export default function BlitzDemo() {
         story_hash: scored.story_hash,
         scored_at: scored.scored_at,
         rationale: scored.rationale,
-        attestation_tx: attested.tx,
-        payment_tx: payment.tx,
+        attestation_tx: attested.attest_tx,
+        payment_tx: payment.payment_tx,
         attested: true,
+        model_used: scored.model_used,
+        score_account: attested.score_account,
       });
       setStep("done");
     } catch (e: unknown) {
@@ -178,9 +183,16 @@ export default function BlitzDemo() {
         {/* Result */}
         {result && (
           <div className="border border-purple-800 rounded-lg p-6 space-y-4 bg-purple-950/30">
-            <h2 className="text-purple-400 font-bold text-lg">
-              ✅ Verified Oracle Result
-            </h2>
+            <div className="flex items-center justify-between">
+              <h2 className="text-purple-400 font-bold text-lg">
+                ✅ Verified Oracle Result
+              </h2>
+              {result.model_used === "ogma-stub-v1" && (
+                <span className="px-2 py-1 bg-yellow-900/40 border border-yellow-600 text-yellow-400 text-xs rounded font-mono">
+                  demo mode
+                </span>
+              )}
+            </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
