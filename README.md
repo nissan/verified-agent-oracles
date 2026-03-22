@@ -1,8 +1,10 @@
-# Verified Agent Oracles — MagicBlock Blitz v2
+# OgmaScore — TEE-Attested AI Judgment as a Payment Primitive
 
-> **Provably honest AI judgment as a payment condition on Solana**
+> **AI agents paying each other — triggered by cryptographic proof, not trust**
 >
-> _Built for MagicBlock Blitz v2 (March 21–23, 2026) and the Real-Time Hackathon (April–May 2026)_
+> _Built for MagicBlock Solana Blitz v2 (March 2026)_
+>
+> 🎮 **[Live Demo](https://frontend-iota-eight-30.vercel.app/blitz)** · 📄 **[Slides](https://frontend-iota-eight-30.vercel.app/slides)** · ⛓️ **[Program on Devnet](https://explorer.solana.com/address/GyT8wyGD3dG3sVQ986SGwKxF23iWNjdbSe4oCuBrkMdd?cluster=devnet)**
 
 ---
 
