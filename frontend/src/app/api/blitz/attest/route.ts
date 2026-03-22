@@ -18,11 +18,11 @@ interface AttestResponse {
 // Real devnet txs from canonical e2e run 2026-03-22T07:29:16
 // All confirmed on Solana devnet — verifiable at explorer.solana.com/?cluster=devnet
 const CANONICAL_TXS = {
-  init_tx:      "5kd5jZKgwuUBZ8HqM3WD8Q1dvEf25fjQhgAGTzFKSDi2KsQS4KJnNKqF2XSqUhwzMa71T4hYRjwbjq5kDdHXEQyr",
-  attest_tx:    "2jxnXe2iV19eY26LYaivL2s334kGAovLUbdzpnkRNFnHzN1jp1NPwD38HK7xwdxg6GtWLsc7CaPwT9zqDLAxyjen",
+  init_tx:      "3LKRGjcSrm6MwsDqhWoBxCsRin9wMMh9DyEsopvNPWhHXoau1ZodTxtWhycErofh4HJvpUJaBFvh8iwKGadLjY8G",
+  attest_tx:    "37gDQPBrvgkgmviojHz2D2oXgN71tVY6NytFfGK2ibM33JYnP9anZrXRqs1BVRXpecvpaU2D7sWymmyuUCFpokuM",
   delegate_tx:  "57bCCNcK8ngtF2XAKD7UmQ888TuqUi59gXFVRdCWZJDkgUWFsxcjR2oyPKG48xXKjuU4p4BBVmcTxCKDotLvyPUa",
-  finalize_tx:  "sTKrfXiAKSFrHHaRHX9jCWd1KGgMeL4V8PgAbjSkmo5N62siPBEQKTe8mLZn6DjDdakziMXfHmfPT5gZCUFYm7h",
-  escrow_tx:    "2NKjGtnV3ge9ZP8e2CBBcznprULm52MmU877cxXLcehmiSHHQ57k5s9XdvxDyNGeqQPCcjqyi8bWNQZv2rDvoxxF",
+  finalize_tx:  "41AdewJkPpU5B2m3hUKkWdquCkCnnfjZXibg14r7uAFRKRFaCkoXUYmNX7aR3qLn1VeZuTuVAAzacXEKGYbfBiNM",
+  escrow_tx:    "23SFdNEq2YGRh524Z3m3K4NGeC4WTBi9c8VhomZr2Ym7yZuGkyc4eZif4mXURctJZMwNbEJwrb91npdJAjfr895S",
   score_account: "4XppN5phMicUJK4imVPas1wuTjUAbVPGwt1Yca1eEa7S",
 };
 
